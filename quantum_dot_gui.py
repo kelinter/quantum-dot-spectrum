@@ -124,6 +124,8 @@ def interactive_spectrum_plot():
     spectrum = emission_spectrum(n_initial, initial_L, E0)
     omega_vals, intensities = zip(*spectrum)
     line = ax.stem(omega_vals, intensities, basefmt=" ")
+    markerline, stemlines, baseline = line
+
 
 
     # Slider controlling L from 5 nm to 20 nm
@@ -134,22 +136,26 @@ def interactive_spectrum_plot():
     def update(val):
         L = slider.val * 1e-9 # convet nm to m
         spectrum = emission_spectrum(n_initial, L, E0)
-        omega_vals, intensities = zip(*spectrum)
         
+        if spectrum:  # check that there is something to plot
+            omega_vals, intensities = zip(*spectrum)
+        else:
+            omega_vals, intensities = [], []
+
         # Clear and redraw
-        ax.cla()
+        ax.cla()    
         ax.set_title(f'Emission Spectrum (L = {slider.val:.1f} nm)')
         ax.set_xlabel('Photon Energy ℏω (rad/s)')
         ax.set_ylabel('Transition Rate (arb. units)')
         ax.grid(True)
-        ax.stem(omega_vals, intensities, basefmt=" ", use_line_collection=True)
-        fig.canvas.draw_idle()  # refresh the figure
+        ax.stem(omega_vals, intensities, basefmt=" ")
+        fig.canvas.draw_idle()
         
-    # Link slider to the update function
-    slider.on_changed(update)
+    slider.on_changed(update)  # <-- Link the slider to the callback
+    plt.show()                 # <-- Display the interactive plot
+
+        
     
-    # Show the interactive plot
-    plt.show()
 
 # run the GUI 
 interactive_spectrum_plot()
