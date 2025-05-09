@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.widgets import RadioButtons, Slider
+from matplotlib.widgets import CheckButtons, RadioButtons, Slider
 
 # Constants
 hbar = 1.055e-34  # Planck's constant [J*s]
@@ -117,6 +117,21 @@ def absorption_spectrum(n_initial, L, E0, n_max=10):
     return spec
 
 
+def broadened_spectrum(spec, sigma, w_min=None, w_max=None, npoints=1000):
+    """
+    Given spec = [(ω_i, I_i), …], return (w_grid, I_grid) where
+    I_grid(w) = sum_i I_i * exp[-(w - ω_i)^2/(2σ^2)].
+    """
+    ω_vals, I_vals = zip(*spec)
+    if w_min is None: w_min = min(ω_vals) - 5*sigma
+    if w_max is None: w_max = max(ω_vals) + 5*sigma
+    w_grid = np.linspace(w_min, w_max, npoints)
+    I_grid = np.zeros_like(w_grid)
+    for ω_i, I_i in spec:
+        I_grid += I_i * np.exp(-0.5*((w_grid - ω_i)/sigma)**2)
+    return w_grid, I_grid
+
+
 
 def interactive_spectrum_plot():
     """
@@ -137,6 +152,8 @@ def interactive_spectrum_plot():
     n_emit      = 3           # for emission: start in level 3
     n_absorb    = 1           # for absorption: start in ground
     n_max       = 10          # max level to consider
+    sigma       = 2e12 # adjust for more or less broadening
+    normalize   = False 
     
     def plot_spectrum():
         ax.clear()
@@ -152,15 +169,17 @@ def interactive_spectrum_plot():
             spec = absorption_spectrum(n_absorb, L, E0, n_max)
 
         if spec:
-            ω_vals, I_vals = zip(*spec)
-            ax.stem(ω_vals, I_vals, basefmt=" ")
+            w_grid, I_grid = broadened_spectrum(spec, sigma)
             
-        # place the legend outside the plot on the left
-        fig.legend(loc='lower left',
-                  bbox_to_anchor=(1.02, 0.5), title="Mode",
-                  frameon=True)
+            # apply normalization if requested
+            if normalize and I_grid.max() > 0:
+                I_grid = I_grid / I_grid.max()
 
+            ax.plot(w_grid, I_grid, 'C1-', lw=2,
+                    label=f'{mode} {"(normalized)" if normalize else "(raw)"}')
 
+            ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1.0))
+            
         fig.canvas.draw_idle()
 
     # Initial draw
@@ -169,6 +188,7 @@ def interactive_spectrum_plot():
     # Slider for dot size
     ax_slider = plt.axes([0.3, 0.1, 0.5, 0.03])
     slider = Slider(ax_slider, 'Dot Size (nm)', 5, 20, valinit=dot_size_nm, valstep=0.5)
+    
     def on_slider(val):
         nonlocal dot_size_nm
         dot_size_nm = slider.val
@@ -184,6 +204,17 @@ def interactive_spectrum_plot():
         mode = label
         plot_spectrum()
     radio.on_clicked(on_radio)
+    
+    # Checkbox for normalization
+    ax_check = plt.axes([0.05, 0.7, 0.15, 0.15], facecolor='lightgoldenrodyellow')
+    check = CheckButtons(ax_check, ['Normalize'], [normalize])
+    def on_check(label):
+        nonlocal normalize
+        normalize = not normalize
+        plot_spectrum()
+    check.on_clicked(on_check)
+
+
 
     plt.show()                 # <-- Display the interactive plot
 
