@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.widgets import Slider
+from matplotlib.widgets import RadioButtons, Slider
 
 # Constants
 hbar = 1.055e-34  # Planck's constant [J*s]
@@ -100,58 +100,91 @@ def emission_spectrum(n_initial, L, E0, n_max=10):
 
     return spectrum  # list of (ω, I) pairs
 
+
+def absorption_spectrum(n_initial, L, E0, n_max=10):
+    """
+    Absorption: transitions from level n_initial up to k > n_initial.
+    Returns list of (ω, intensity).
+    """
+    spec = []
+    En = energy(n_initial, L)
+    for k in range(n_initial+1, n_max+1):
+        Ek = energy(k, L)
+        ω = (Ek - En) / hbar
+        xkn = x_matrix_element(k, n_initial, L)
+        I = (q**2 * E0**2 / hbar) * (xkn**2)
+        spec.append((ω, I))
+    return spec
+
+
+
 def interactive_spectrum_plot():
     """
     Create a Matplotlib figure with:
       - A stem plot of the emission spectrum
       - A slider to vary the box width L (dot size)
     """
-    fig, ax = plt.subplots()
-    plt.subplots_adjust(bottom=0.25) # make room at the bottom for the slider
     
-    # Initial plot setup
-    ax.set_title('Emission Spectrum for 1D Quantum Dot')
-    ax.set_xlabel('Photon Energy ℏω (rad/s)')
-    ax.set_ylabel('Transition Rate (arb. units)')
-    ax.grid(True)
-
-    # Default parameters
-    initial_L = 10e-9  # start with a 10 nm dot
-    E0 = 1e5           # field amplitude (arb. units)
-    n_initial = 3      # excite to level n=3
-
-    # Compute and plot the initial spectrum
-    spectrum = emission_spectrum(n_initial, initial_L, E0)
-    omega_vals, intensities = zip(*spectrum)
-    line = ax.stem(omega_vals, intensities, basefmt=" ")
-    markerline, stemlines, baseline = line
-
-
-
-    # Slider controlling L from 5 nm to 20 nm
-    ax_slider = plt.axes([0.25, 0.1, 0.5, 0.03])
-    slider = Slider(ax_slider, 'Dot Size (nm)', 5, 20, valinit=10, valstep=0.5)
-
-    # Callback to update the plot whenever the slider moves
-    def update(val):
-        L = slider.val * 1e-9 # convet nm to m
-        spectrum = emission_spectrum(n_initial, L, E0)
-        
-        if spectrum:  # check that there is something to plot
-            omega_vals, intensities = zip(*spectrum)
-        else:
-            omega_vals, intensities = [], []
-
-        # Clear and redraw
-        ax.cla()    
-        ax.set_title(f'Emission Spectrum (L = {slider.val:.1f} nm)')
+    # Set up figure + axes
+    fig, ax = plt.subplots(figsize=(8,5))
+    # leave space on the right for the legend
+    plt.subplots_adjust(left=0.3, right=0.75, bottom=0.25)
+    
+    # Initial parameters
+    mode        = 'Emission'  # start in Emission mode
+    dot_size_nm = 10          # initial L in nm
+    E0          = 1e5         # field amplitude (arb.)
+    n_emit      = 3           # for emission: start in level 3
+    n_absorb    = 1           # for absorption: start in ground
+    n_max       = 10          # max level to consider
+    
+    def plot_spectrum():
+        ax.clear()
+        L = dot_size_nm * 1e-9
+        ax.set_title(f'{mode} Spectrum (L = {dot_size_nm:.1f} nm)')
         ax.set_xlabel('Photon Energy ℏω (rad/s)')
         ax.set_ylabel('Transition Rate (arb. units)')
         ax.grid(True)
-        ax.stem(omega_vals, intensities, basefmt=" ")
+
+        if mode == 'Emission':
+            spec = emission_spectrum(n_emit, L, E0)
+        else:
+            spec = absorption_spectrum(n_absorb, L, E0, n_max)
+
+        if spec:
+            ω_vals, I_vals = zip(*spec)
+            ax.stem(ω_vals, I_vals, basefmt=" ")
+            
+        # place the legend outside the plot on the left
+        fig.legend(loc='lower left',
+                  bbox_to_anchor=(1.02, 0.5), title="Mode",
+                  frameon=True)
+
+
         fig.canvas.draw_idle()
-        
-    slider.on_changed(update)  # <-- Link the slider to the callback
+
+    # Initial draw
+    plot_spectrum()
+
+    # Slider for dot size
+    ax_slider = plt.axes([0.3, 0.1, 0.5, 0.03])
+    slider = Slider(ax_slider, 'Dot Size (nm)', 5, 20, valinit=dot_size_nm, valstep=0.5)
+    def on_slider(val):
+        nonlocal dot_size_nm
+        dot_size_nm = slider.val
+        plot_spectrum()
+    slider.on_changed(on_slider)
+
+
+    # Radio buttons for Emission/Absorption
+    ax_radio = plt.axes([0.05, 0.5, 0.15, 0.15], facecolor='lightgoldenrodyellow')
+    radio = RadioButtons(ax_radio, ('Emission', 'Absorption'), active=0)
+    def on_radio(label):
+        nonlocal mode
+        mode = label
+        plot_spectrum()
+    radio.on_clicked(on_radio)
+
     plt.show()                 # <-- Display the interactive plot
 
         
